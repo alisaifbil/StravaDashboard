@@ -1,6 +1,7 @@
-// import {CLIENT_ID ,CLIENT_SECRET, ACCESS_TOKEN} from process.env;
 import axios from "axios";
 import { useState } from "react";
+import { collection, addDoc, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
 import "./App.css";
 
 function App() {
@@ -8,6 +9,7 @@ function App() {
   const [activities, setActivities] = useState([]);
   const [afterTime, setAfterTime] = useState(1546300800)
 
+  const collectionName = collection(db, "stravakeys");
   const getAllActivities = () => {
     axios
       .get(
@@ -44,9 +46,45 @@ function App() {
       });
   };
 
+
+  const getNewRefreshToken = () => {
+    
+  }
+
+  const getAccessToken = async() => {
+    var accessTokenList;
+    const accessToken = await getDocs(collectionName);
+    accessToken.forEach(doc => {
+      accessTokenList.push(doc.data());
+    });
+    accessTokenList.sort((a, b) => {
+      return (a.dateAdded > b.dateAdded) ? -1 : ((a.dateAdded < b.dateAdded) ? 1 : 0);
+    });
+
+    const latestAccessToken = accessTokenList[0].access_token;
+    const latestRefreshToken = accessTokenList[0].refresh_token;
+  }
+
+  const addAccessToken = async() => {
+    try {
+      const keyDoc = await addDoc(collectionName, {
+        expires_at: 1672175775,
+        expires_in: 21600,
+        refresh_token: "2af5ccd63e11220c487250e4d1c7e8ac34526ed7" ,
+        access_token: "5253fefdb226196d5d8a6d16126e7c49c06fe131",
+        dateAdded : new Date().toISOString() 
+      });
+      console.log("Document written with ID: ", keyDoc.id);
+    }
+    catch(error) {
+      console.log("some error ", error);
+    }
+  }
+
+
   return (
     <div>
-      <button onClick={getAllActivities}>Click Me</button>
+      <button onClick={addAccessToken}>Click Me</button>
     </div>
   );
 }
