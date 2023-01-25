@@ -8,22 +8,20 @@ function App() {
   const [pageNo, setPageNo] = useState(1);
   const [activities, setActivities] = useState([]);
   const [afterTime, setAfterTime] = useState(1546300800);
-  const [accessToken, setAccessToken] = useState('');
-  const [refreshToken, setRefreshToken] = useState('');
-  const [expiresAt, setExpiresAt] = useState('');
+  const [accessToken, setAccessToken] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
 
   useEffect(() => {
     // await getLatestAccessTokenFromDB();
-    async function fetchAccessToken(){
-      await getLatestAccessTokenFromDB();
-    }
-    fetchAccessToken();
-    console.log(accessToken, "-" ,refreshToken,"-" , expiresAt);
-    if(new Date(expiresAt*1000) > new Date()){
-      console.log("refreshing access token");
-      getNewRefreshToken();
-    }
-  },[]);
+      getLatestAccessTokenFromDB();
+      // console.log(accessToken, "-", refreshToken, "-", expiresAt);
+      // if (new Date(expiresAt * 1000) > new Date()) {
+      //   console.log("refreshing access token");
+      //   getNewRefreshToken();
+      // }
+
+  }, []);
 
   const collectionName = collection(db, "stravakeys");
   const getAllActivities = () => {
@@ -39,7 +37,7 @@ function App() {
           return new Date(b.start_date) - new Date(a.start_date);
         });
         // console.log(activityArr, "---", activityArr[0].start_date);
-        let newAfterTime = new Date(activityArr[0].start_date).getTime()/1000;
+        let newAfterTime = new Date(activityArr[0].start_date).getTime() / 1000;
         setAfterTime(newAfterTime);
         // console.log(newAfterTime);
         setActivities([...activities, activityArr]);
@@ -52,7 +50,7 @@ function App() {
         //     )
         //     .then((result) => {
         //       console.log(result.data);
-        //       activityArr.concat(result.data); 
+        //       activityArr.concat(result.data);
         //       console.log(activityArr, "---", activityArr.length);
         //       setActivities([...activities, activityArr]);
         //     });
@@ -62,23 +60,38 @@ function App() {
       });
   };
 
-
   const getNewRefreshToken = () => {
-    axios.post(`${process.env.REACT_APP_OAUTH_LINK}?client_id=${process.env.REACT_APP_CLIENT_ID}&client_secret=
-    ${process.env.REACT_APP_CLIENT_SECRET}&grant_type=refresh_token&refresh_token=${refreshToken}`)
-    .then(response => {console.log(response)});
-  }
+    axios
+      .post(
+        `${process.env.REACT_APP_OAUTH_LINK}`, {
+          client_id: `${process.env.REACT_APP_CLIENT_ID}`,
+          client_secret: `${process.env.REACT_APP_CLIENT_SECRET}`,
+          grant_type: "refresh_token",
+          refresh_token: `${refreshToken}`
+        }
+      )
+      .then((response) => {
+        console.log(response.data);
+        let responseObj = {
+          expiresAt: response.data.expires_at,
+          expiresIn: response.data.expires_in,
+          refreshToken: response.data.refresh_token,
+          accessToken: response.data.access_token
+        }
+        addAccessTokenToFirebaseDB(responseObj)
+      });
+  };
 
-  const getLatestAccessTokenFromDB = async() => {
+  const getLatestAccessTokenFromDB = async () => {
     var accessTokenList = [];
     const accessToken = await getDocs(collectionName);
     // console.log(accessToken);
-    accessToken.forEach(doc => {
+    accessToken.forEach((doc) => {
       // console.log(doc.data());
       accessTokenList.push(doc.data());
     });
     accessTokenList.sort((a, b) => {
-      return (a.dateAdded > b.dateAdded) ? -1 : ((a.dateAdded < b.dateAdded) ? 1 : 0);
+      return a.dateAdded > b.dateAdded ? -1 : a.dateAdded < b.dateAdded ? 1 : 0;
     });
     // console.log(accessTokenList);
     const latestAccessToken = accessTokenList[0].access_token;
@@ -87,24 +100,32 @@ function App() {
     setAccessToken(latestAccessToken);
     setRefreshToken(latestRefreshToken);
     setExpiresAt(latestExpiresAt);
-  }
 
-  const addAccessTokenToFirebaseDB = async() => {
+    console.log("latestAccessToken", ":", accessToken, "-", "latestRefreshToken",":", refreshToken, "-", "latestExpiresAt",":", expiresAt);
+
+    if (new Date(expiresAt * 1000) > new Date()) {
+      console.log("refreshing access token");
+      getNewRefreshToken();
+    }
+    else {
+      console.log("No need to refresh token");
+    }
+  };
+
+  const addAccessTokenToFirebaseDB = async (responseObj) => {
     try {
       const keyDoc = await addDoc(collectionName, {
-        expires_at: 1672863276,
-        expires_in: 21600,
-        refresh_token: "bb213896e6b4cccdf23ff2724a013f25696911d1" ,
-        access_token: "6f81e38d2cc9a4d116473dbafc173409294383f2",
-        dateAdded : new Date().toISOString() 
+        expires_at: responseObj.expiresAt,
+        expires_in: responseObj.expiresIn,
+        refresh_token: responseObj.refreshToken,
+        access_token: responseObj.accessToken,
+        dateAdded: new Date().toISOString(),
       });
       console.log("Document written with ID: ", keyDoc.id);
-    }
-    catch(error) {
+    } catch (error) {
       console.log("some error ", error);
     }
-  }
-
+  };
 
   return (
     <div>
